@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MVP Reconocimiento Facial - face-api.js</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #111827;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #3b82f6;
+            --accent-2: #22c55e;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            background: var(--bg);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        header {
+            max-width: 920px;
+            margin: 24px auto 8px;
+            padding: 0 16px;
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            margin: 0 0 8px;
+        }
+
+        .note {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 920px;
+            margin: 0 auto 48px;
+            padding: 16px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid #1f2937;
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #1f2937;
+            color: var(--text);
+            border: 1px solid #334155;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        button.success {
+            background: var(--accent-2);
+            border-color: var(--accent-2);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .sections {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .sections button.active {
+            outline: 2px solid var(--accent);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        @media (min-width: 800px) {
+            .grid {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+
+        .video-wrap {
+            position: relative;
+        }
+
+        video {
+            width: 100%;
+            max-height: 60vh;
+            background: black;
+            border-radius: 8px;
+        }
+
+        .msg {
+            margin-top: 8px;
+            min-height: 1.5em;
+            color: var(--muted);
+        }
+
+        .msg.ok {
+            color: #a7f3d0;
+        }
+
+        .msg.warn {
+            color: #fde68a;
+        }
+
+        .msg.err {
+            color: #fecaca;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--muted);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0b1220;
+            color: var(--text);
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #0b1220;
+            border: 1px solid #334155;
+            color: var(--muted);
+            font-size: 12px;
+        }
+    </style>
+
+    <!-- face-api.js desde CDN (lib). Los modelos se cargan LOCALMENTE desde ./models -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>MVP Reconocimiento Facial (face-api.js)</h1>
+        <div class="note">
+            - Funciona 100% en el cliente. Para usar la cámara, abre este archivo desde <b>http://localhost</b> o sobre
+            <b>HTTPS</b> (requisito del navegador).
+        </div>
+    </header>
+    <div class="container">
+        <div class="card">
+            <div class="sections">
+                <button id="goRegistro" class="active">Registro</button>
+                <button id="goIdentificacion">Identificación</button>
+                <span class="spacer"></span>
+                <span id="statusPill" class="pill">Cargando modelos…</span>
+            </div>
+
+            <div class="grid">
+                <div>
+                    <div class="video-wrap">
+                        <video id="video" autoplay muted playsinline></video>
+                    </div>
+                    <div id="message" class="msg">Inicializando…</div>
+                </div>
+
+                <div>
+                    <!-- Sección Registro -->
+                    <section id="seccionRegistro">
+                        <label for="nameInput">Nombre para registrar</label>
+                        <div class="row">
+                            <input id="nameInput" type="text" placeholder="Ej: Ana Pérez" />
+                        </div>
+                        <div style="height: 8px"></div>
+                        <div class="row">
+                            <button id="btnRegistrar" class="success">Registrar</button>
+                            <span class="spacer"></span>
+                            <button id="btnListar">Ver registros</button>
+                            <button id="btnBorrarTodo"
+                                style="background:#1f2937;border-color:#334155;color:#fca5a5">Borrar todo</button>
+                        </div>
+                        <div id="registroInfo" class="msg"></div>
+                    </section>
+
+                    <!-- Sección Identificación -->
+                    <section id="seccionIdentificacion" hidden>
+                        <div class="row">
+                            <button id="btnIdentificar" class="primary">Detectar identidad</button>
+                            <span class="spacer"></span>
+                            <span id="contadorRegistros" class="pill">0 registros</span>
+                        </div>
+                        <div id="identInfo" class="msg"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuración de modelos locales. Asegúrate de tener ./models/* descargados
+        const MODEL_URL = './models';
+        const STORAGE_KEY = 'faces_db_v1';
+
+        const els = {
+            video: document.getElementById('video'),
+            message: document.getElementById('message'),
+            statusPill: document.getElementById('statusPill'),
+            // navegación
+            goRegistro: document.getElementById('goRegistro'),
+            goIdentificacion: document.getElementById('goIdentificacion'),
+            // registro
+            seccionRegistro: document.getElementById('seccionRegistro'),
+            nameInput: document.getElementById('nameInput'),
+            btnRegistrar: document.getElementById('btnRegistrar'),
+            btnListar: document.getElementById('btnListar'),
+            btnBorrarTodo: document.getElementById('btnBorrarTodo'),
+            registroInfo: document.getElementById('registroInfo'),
+            // identificación
+            seccionIdentificacion: document.getElementById('seccionIdentificacion'),
+            btnIdentificar: document.getElementById('btnIdentificar'),
+            identInfo: document.getElementById('identInfo'),
+            contadorRegistros: document.getElementById('contadorRegistros'),
+        };
+
+        let mediaStream = null;
+        let modelsLoaded = false;
+
+        function setMessage(text, kind = 'info') {
+            els.message.textContent = text;
+            els.message.className = 'msg';
+            if (kind === 'ok') els.message.classList.add('ok');
+            if (kind === 'warn') els.message.classList.add('warn');
+            if (kind === 'err') els.message.classList.add('err');
+        }
+
+        function setStatus(text) {
+            els.statusPill.textContent = text;
+        }
+
+        function getDB() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                const list = raw ? JSON.parse(raw) : [];
+                if (Array.isArray(list)) return list;
+                return [];
+            } catch (e) {
+                console.warn('Error leyendo storage', e);
+                return [];
+            }
+        }
+
+        function setDB(list) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+            updateCounter();
+        }
+
+        function updateCounter() {
+            const n = getDB().length;
+            els.contadorRegistros.textContent = `${n} registro${n === 1 ? '' : 's'}`;
+        }
+
+        async function loadModels() {
+            setStatus('Cargando modelos…');
+            await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+            ]);
+            modelsLoaded = true;
+            setStatus('Modelos listos');
+        }
+
+        async function startCamera() {
+            if (mediaStream) return; // ya iniciada
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user' },
+                    audio: false,
+                });
+                els.video.srcObject = mediaStream;
+                await new Promise((res) => {
+                    els.video.onloadedmetadata = () => {
+                        els.video.play().then(res).catch(res);
+                    };
+                });
+                setMessage('Cámara lista');
+            } catch (err) {
+                console.error(err);
+                setMessage('No se pudo acceder a la cámara. Revisa permisos y origen (https/localhost).', 'err');
+                throw err;
+            }
+        }
+
+        function euclideanDistance(a, b) {
+            let sum = 0;
+            for (let i = 0; i < a.length; i++) {
+                const d = a[i] - b[i];
+                sum += d * d;
+            }
+            return Math.sqrt(sum);
+        }
+
+        function activateSection(which) {
+            const isReg = which === 'registro';
+            els.seccionRegistro.hidden = !isReg;
+            els.seccionIdentificacion.hidden = isReg;
+            els.goRegistro.classList.toggle('active', isReg);
+            els.goIdentificacion.classList.toggle('active', !isReg);
+            setMessage(isReg ? 'Modo Registro' : 'Modo Identificación');
+        }
+
+        async function getCurrentFaceDescriptor() {
+            if (!modelsLoaded) throw new Error('Modelos no cargados');
+            const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+            const result = await faceapi
+                .detectSingleFace(els.video, opts)
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+            return result; // puede ser null
+        }
+
+        async function handleRegister() {
+            els.btnRegistrar.disabled = true;
+            els.registroInfo.textContent = 'Buscando rostro…';
+            try {
+                const name = (els.nameInput.value || '').trim();
+                if (!name) {
+                    els.registroInfo.textContent = 'Ingrese un nombre antes de registrar.';
+                    return;
+                }
+                const detection = await getCurrentFaceDescriptor();
+                if (!detection) {
+                    els.registroInfo.textContent = 'No se detectó un rostro claro. Intenta acercarte o mejorar la iluminación.';
+                    setMessage('Sin rostro detectado', 'warn');
+                    return;
+                }
+                const descriptor = Array.from(detection.descriptor);
+                const db = getDB();
+                db.push({ nombre: name, descriptor });
+                setDB(db);
+                els.registroInfo.textContent = `Registrado: ${name} (descriptor 128D)`;
+                setMessage(`Registrado: ${name}`, 'ok');
+                els.nameInput.value = '';
+            } catch (e) {
+                console.error(e);
+                els.registroInfo.textContent = 'Ocurrió un error en el registro.';
+                setMessage('Error en registro', 'err');
+            } finally {
+                els.btnRegistrar.disabled = false;
+            }
+        }
+
+        async function handleIdentify() {
+            els.btnIdentificar.disabled = true;
+            els.identInfo.textContent = 'Analizando rostro…';
+            try {
+                const detection = await getCurrentFaceDescriptor();
+                if (!detection) {
+                    els.identInfo.textContent = 'No se detectó rostro. Verifica encuadre e iluminación.';
+                    setMessage('Sin rostro detectado', 'warn');
+                    return;
+                }
+                const probe = Array.from(detection.descriptor);
+                const db = getDB();
+                if (!db.length) {
+                    els.identInfo.textContent = 'No hay registros guardados.';
+                    setMessage('Base vacía', 'warn');
+                    return;
+                }
+
+                let best = { nombre: null, distancia: Infinity };
+                for (const item of db) {
+                    const d = euclideanDistance(probe, item.descriptor);
+                    if (d < best.distancia) best = { nombre: item.nombre, distancia: d };
+                }
+
+                const threshold = 0.6;
+                if (best.distancia < threshold) {
+                    els.identInfo.textContent = `Coincidencia: ${best.nombre} (distancia ${best.distancia.toFixed(3)})`;
+                    setMessage(`Identificado: ${best.nombre}`, 'ok');
+                } else {
+                    els.identInfo.textContent = `No hay coincidencias (mejor distancia ${best.distancia.toFixed(3)} ≥ ${threshold}).`;
+                    setMessage('No hay coincidencias', 'warn');
+                }
+            } catch (e) {
+                console.error(e);
+                els.identInfo.textContent = 'Error al identificar.';
+                setMessage('Error en identificación', 'err');
+            } finally {
+                els.btnIdentificar.disabled = false;
+            }
+        }
+
+        function listRegistrations() {
+            const db = getDB();
+            if (!db.length) {
+                els.registroInfo.textContent = 'No hay registros.';
+            } else {
+                const names = db.map((e, i) => `${i + 1}. ${e.nombre}`).join('  ·  ');
+                els.registroInfo.textContent = `Registrados (${db.length}): ${names}`;
+            }
+        }
+
+        function clearAll() {
+            setDB([]);
+            els.registroInfo.textContent = 'Registros borrados.';
+            setMessage('Base limpia', 'ok');
+        }
+
+        function bindUI() {
+            els.goRegistro.addEventListener('click', () => activateSection('registro'));
+            els.goIdentificacion.addEventListener('click', () => activateSection('identificacion'));
+            els.btnRegistrar.addEventListener('click', handleRegister);
+            els.btnIdentificar.addEventListener('click', handleIdentify);
+            els.btnListar.addEventListener('click', listRegistrations);
+            els.btnBorrarTodo.addEventListener('click', clearAll);
+        }
+
+        async function init() {
+            try {
+                bindUI();
+                updateCounter();
+                setMessage('Cargando modelos…');
+                await loadModels();
+                await startCamera();
+                setMessage('Listo. Elige Registro o Identificación.');
+            } catch (e) {
+                // Mensajes ya gestionados en los handlers
+            }
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+        });
+
+        // Inicia la app
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>
